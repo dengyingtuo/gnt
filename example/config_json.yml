@@ -1,0 +1,16 @@
+name: "json"
+template: "json.tpl"
+sheet: 1
+pkcols: [1]
+pksep: ":"
+list:
+  -
+    input: "example.xlsx"
+    cols: [-3]
+    output: "example_hero.json"
+  -
+    input: "example.xlsx"
+    sheet: 2
+    pkcols: [1,2]   
+    cols: [-4]
+    output: "example_equip.json"
