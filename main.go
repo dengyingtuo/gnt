@@ -95,5 +95,5 @@ func main() {
 		}()
 	}
 	jobs.Wait()
-	log.Print("处理完毕，耗时:", time.Now().Sub(bt))
+	fmt.Println("处理完毕，耗时:", time.Now().Sub(bt))
 }
