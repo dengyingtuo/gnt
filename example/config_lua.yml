@@ -16,3 +16,9 @@ list:
     pkcols: [1,2]   
     cols: [-4]
     output: "example_equip.lua"
+  -
+    input: "example.xlsx"
+    sheet: 3
+    pkcols: [2,3]   
+    cols: [-1, -2, -3, -5]
+    output: "example_role.lua"

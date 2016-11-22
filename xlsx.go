@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"path"
 	"strconv"
 	"strings"
 
@@ -17,18 +16,22 @@ type Field struct {
 	str  string
 }
 
-func (f *Field) Value() interface{} {
-	switch f.Type {
+func toValue(s, typ string) interface{} {
+	switch typ {
 	case "string":
-		return f.str
+		return s
 	case "int":
-		v, _ := strconv.ParseFloat(f.str, 64)
+		v, _ := strconv.ParseFloat(s, 64)
 		return int(v)
 	case "float":
-		v, _ := strconv.ParseFloat(f.str, 64)
+		v, _ := strconv.ParseFloat(s, 64)
 		return v
 	}
 	return nil
+}
+
+func (f *Field) Value() interface{} {
+	return toValue(f.str, f.Type)
 }
 
 func (f *Field) EscapeValue() interface{} {
@@ -51,22 +54,19 @@ func escape(pk interface{}, typ string) interface{} {
 	return pk
 }
 
-type XlsxData struct {
-	Name string
-	Rows []*RowData
-}
-
-func makePk(rowData []*Field, pkCols []int, pkSep string) (pk, escapePk interface{}) {
+func makePk(dataRow []string, typeRow []string, pkCols []int, pkSep string) (pk, escapePk interface{}) {
 	for _, v := range pkCols {
-		if v < 0 || v >= len(rowData) {
-			panic(fmt.Errorf("主键列无效:%v", pkCols))
+		if v < 0 || v >= len(dataRow) {
+			panic(fmt.Errorf("主键列无效:%v, %d", pkCols, len(dataRow)))
 		}
 	}
 
 	if len(pkCols) > 1 {
 		var key string
-		for i, v := range pkCols {
-			key += fmt.Sprint(rowData[v-1].Value())
+		for i, col := range pkCols {
+			colIdx := col - 1
+			val := toValue(dataRow[colIdx], typeRow[colIdx])
+			key += fmt.Sprint(val)
 			if i < len(pkCols)-1 {
 				key += pkSep
 			}
@@ -74,48 +74,16 @@ func makePk(rowData []*Field, pkCols []int, pkSep string) (pk, escapePk interfac
 		return key, escape(key, "string")
 	}
 
-	pkField := rowData[pkCols[0]-1]
-	return pkField.Value(), escape(pkField.Value(), pkField.Type)
+	colIdx := pkCols[0] - 1
+	s := dataRow[colIdx]
+	typ := typeRow[colIdx]
+	pk = toValue(s, typ)
+	return pk, escape(pk, typ)
 }
 
-func readRow(row *xlsx.Row) []string {
-	ret := []string{}
-	for _, cell := range row.Cells {
-		s, err := cell.String()
-		if err != nil {
-			log.Fatal(err)
-		}
-		ret = append(ret, strings.TrimSpace(s))
-	}
-	return ret
-}
-
-func readHeader(sheet *xlsx.Sheet, ecols []int) (descRow, nameRow, typRow []string, err error) {
-	descRow = readRow(sheet.Rows[0])
-	nameRow = readRow(sheet.Rows[1])
-	typRow = readRow(sheet.Rows[2])
-	if len(descRow) != len(nameRow) || len(nameRow) != len(typRow) {
-		return nil, nil, nil, fmt.Errorf("描述行，名称行和类型行的列数应该相同！")
-	}
-
-	for i, _ := range descRow {
-		if nameRow[i] == "" {
-			return nil, nil, nil, fmt.Errorf("第%d列名称为空", i+1)
-		}
-		if typRow[i] == "" {
-			return nil, nil, nil, fmt.Errorf("第%d列类型为空", i+1)
-		}
-	}
-
-	var retDescRow, retNameRow, retTypRow []string
-	for i, _ := range descRow {
-		if !isInSlice(ecols, i+1) {
-			retDescRow = append(retDescRow, descRow[i])
-			retNameRow = append(retNameRow, nameRow[i])
-			retTypRow = append(retTypRow, typRow[i])
-		}
-	}
-	return retDescRow, retNameRow, retTypRow, nil
+type XlsxData struct {
+	Name string
+	Rows []*RowData
 }
 
 func isInSlice(list []int, _v int) bool {
@@ -127,20 +95,20 @@ func isInSlice(list []int, _v int) bool {
 	return false
 }
 
-func getExcludeCols(cfg *Config, sheet *xlsx.Sheet, idx int) []int {
+func getExcludeCols(colNum int, cfg *Config, idx int) []int {
 	cols := cfg.GetCols(idx)
 	if len(cols) == 0 {
 		return nil
 	}
 	exclude := []int{}
 	if cols[0] > 0 {
-		for i := 1; i <= len(sheet.Cols); i++ {
+		for i := 1; i <= colNum; i++ {
 			if !isInSlice(cols, i) {
 				exclude = append(exclude, i)
 			}
 		}
 	} else if cols[0] < 0 {
-		for i := 1; i < len(sheet.Cols); i++ {
+		for i := 1; i <= colNum; i++ {
 			if isInSlice(cols, -i) {
 				exclude = append(exclude, i)
 			}
@@ -149,64 +117,125 @@ func getExcludeCols(cfg *Config, sheet *xlsx.Sheet, idx int) []int {
 	return exclude
 }
 
-// fp: file path
-func readXlsxData(fp string, cfg *Config, cfIdx int) *XlsxData {
+func readRow(row *xlsx.Row, colNum int) []string {
+	empty := true
+	ret := []string{}
+	for _, cell := range row.Cells {
+		s, err := cell.String()
+		if err != nil {
+			panic(err)
+		}
+		v := strings.TrimSpace(s)
+		if len(v) > 0 {
+			empty = false
+		}
+		ret = append(ret, v)
+	}
+
+	if empty {
+		return nil
+	}
+
+	// 填充空白单元格
+	for i := len(ret); i < colNum; i++ {
+		ret = append(ret, "")
+	}
+	return ret
+}
+
+func checkHeader(rowsData [][]string) error {
+	if len(rowsData) < 3 {
+		return fmt.Errorf("缺少header行!")
+	}
+
+	descRow := rowsData[0]
+	nameRow := rowsData[1]
+	typRow := rowsData[2]
+	if len(descRow) != len(nameRow) || len(nameRow) != len(typRow) {
+		return fmt.Errorf("描述行，名称行和类型行的列数应该相同！")
+	}
+
+	for i, _ := range descRow {
+		if nameRow[i] == "" {
+			return fmt.Errorf("第%d列名称为空", i+1)
+		}
+		if typRow[i] == "" {
+			return fmt.Errorf("第%d列类型为空", i+1)
+		}
+	}
+
+	nameMap := map[string]int{}
+	for i, v := range nameRow {
+		if nameMap[v] > 0 {
+			return fmt.Errorf("%v 第%d,%d列名字冲突!", nameRow, nameMap[v], i+1)
+		}
+		nameMap[v] = i + 1
+	}
+	return nil
+}
+
+// 读取所有列
+func readFull(fp string, cfg *Config, cfIdx int) [][]string {
 	file, err := xlsx.OpenFile(fp)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	ret := &XlsxData{}
-	_, ret.Name = path.Split(fp)
 	si := cfg.GetSheet(cfIdx)
 	if si <= 0 {
-		panic(fmt.Errorf("没有指定数据表sheet"))
+		panic(fmt.Errorf("没有指定数据表sheet:", cfIdx))
 	}
 	sheet := file.Sheets[si-1]
-	colNum := len(sheet.Rows[0].Cells)
-	ecols := getExcludeCols(cfg, sheet, cfIdx)
-	// log.Println(ecols)
-	pkCols := cfg.GetPkCols(cfIdx)
-	if len(pkCols) == 0 {
-		panic("没有指定主键列")
+	if len(sheet.Rows) < 4 {
+		panic(fmt.Errorf("无效数据表:", cfIdx))
 	}
-	// log.Println(cfIdx, pkCols)
-	descRow, nameRow, typRow, err := readHeader(sheet, ecols)
-	if err != nil {
+
+	colNum := len(sheet.Rows[1].Cells) // 名字行
+
+	ret := [][]string{}
+	for _, row := range sheet.Rows {
+		list := readRow(row, colNum)
+		if list == nil {
+			break
+		}
+		ret = append(ret, list)
+	}
+	return ret
+}
+
+// fp: file path
+func readXlsxData(fp string, cfg *Config, cfIdx int) *XlsxData {
+	rowsData := readFull(fp, cfg, cfIdx)
+	if err := checkHeader(rowsData); err != nil {
 		panic(err)
 	}
 
-	for _, row := range sheet.Rows[3:] {
-		var rowData []*Field
-		isEmpty := true
-		for colIdx := 0; colIdx < colNum; colIdx++ {
-			if !isInSlice(ecols, colIdx+1) {
-				var val string
-				if colIdx < len(row.Cells) {
-					cell := row.Cells[colIdx]
-					val, _ = cell.String()
-				}
-				field := &Field{str: val}
-				rowData = append(rowData, field)
-				if val != "" {
-					isEmpty = false
-				}
-			}
-		}
+	name := strings.Split(cfg.List[cfIdx].Input, ".")[0]
+	xlsxData := &XlsxData{Name: name}
+	colNum := len(rowsData[0])
+	pkCols := cfg.GetPkCols(cfIdx)
+	excludeCols := getExcludeCols(colNum, cfg, cfIdx)
+	log.Println(colNum, pkCols, excludeCols)
 
-		if isEmpty {
-			break
-		} else {
-			for i, field := range rowData {
-				field.Desc = descRow[i]
-				field.Name = nameRow[i]
-				field.Type = typRow[i]
-				// log.Println(*field)
+	descRow := rowsData[0]
+	nameRow := rowsData[1]
+	typeRow := rowsData[2]
+	for _, rowData := range rowsData[3:] {
+		fieldList := []*Field{}
+		log.Println("===>", rowData)
+		for colIdx, val := range rowData {
+			if !isInSlice(excludeCols, colIdx+1) {
+				desc := descRow[colIdx]
+				name := nameRow[colIdx]
+				typ := typeRow[colIdx]
+				field := &Field{Desc: desc, Name: name, Type: typ, str: val}
+				log.Printf("field:%+v\n", field)
+				fieldList = append(fieldList, field)
 			}
-			rd := &RowData{Data: rowData}
-			rd.Pk, rd.EscapePk = makePk(rowData, pkCols, cfg.PkSep)
-			ret.Rows = append(ret.Rows, rd)
 		}
+		row := &RowData{Data: fieldList}
+		row.Pk, row.EscapePk = makePk(rowData, typeRow, pkCols, cfg.PkSep)
+		xlsxData.Rows = append(xlsxData.Rows, row)
 	}
-	return ret
+	return xlsxData
 }

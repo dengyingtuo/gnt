@@ -3,18 +3,22 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
+	"sync"
 	"text/template"
 	"time"
 )
 
+var debug bool
 var configPath string
 var inputPath string
 var outputPath string
 
 func init() {
+	flag.BoolVar(&debug, "debug", false, "open debug output")
 	flag.StringVar(&configPath, "config", "config.yml", "config file in YAML format")
 	flag.StringVar(&inputPath, "input", "./xlsx", "input xlsx path")
 	flag.StringVar(&outputPath, "output", "./output", "output file path")
@@ -30,6 +34,12 @@ func main() {
 	if configPath == "" || inputPath == "" || outputPath == "" {
 		flag.Usage()
 		return
+	}
+
+	log.SetPrefix("gnt")
+	log.SetFlags(log.Lshortfile | log.Ltime | log.Lmicroseconds)
+	if !debug {
+		log.SetOutput(ioutil.Discard)
 	}
 
 	bt := time.Now()
@@ -62,6 +72,7 @@ func main() {
 		},
 	}
 
+	jobs := sync.WaitGroup{}
 	for i, v := range cfg.List {
 		xlsxData := readXlsxData(path.Join(inputPath, v.Input), cfg, i)
 		tpl, err := template.New(cfg.Template).Funcs(funcMap).ParseFiles(path.Join(path.Dir(configPath), cfg.Template))
@@ -73,11 +84,16 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		err = tpl.Execute(outputFile, xlsxData)
-		if err != nil {
-			panic(err)
-		}
-	}
 
+		jobs.Add(1)
+		go func() {
+			err = tpl.Execute(outputFile, xlsxData)
+			if err != nil {
+				panic(err)
+			}
+			jobs.Done()
+		}()
+	}
+	jobs.Wait()
 	log.Print("处理完毕，耗时:", time.Now().Sub(bt))
 }
