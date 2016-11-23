@@ -20,7 +20,7 @@ var force bool // 是否处理所有输入项，不存在就panic
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "open debug output")
-	flag.BoolVar(&force, "force", true, "force handle all input")
+	flag.BoolVar(&force, "force", false, "force handle all input")
 	flag.StringVar(&configPath, "config", "config.yml", "config file in YAML format")
 	flag.StringVar(&inputPath, "input", "./xlsx", "input xlsx path")
 	flag.StringVar(&outputPath, "output", "./output", "output file path")
