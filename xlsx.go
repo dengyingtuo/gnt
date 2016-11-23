@@ -120,13 +120,11 @@ func getExcludeCols(colNum int, cfg *Config, idx int) []int {
 func readRow(row *xlsx.Row, colNum int) []string {
 	empty := true
 	ret := []string{}
-	for _, cell := range row.Cells {
-		s, err := cell.String()
-		if err != nil {
-			panic(err)
-		}
+	for idx := 0; idx < colNum; idx++ {
+		cell := row.Cells[idx]
+		s, _ := cell.String()
 		v := strings.TrimSpace(s)
-		if len(v) > 0 {
+		if v != "" {
 			empty = false
 		}
 		ret = append(ret, v)
@@ -190,7 +188,21 @@ func readFull(fp string, cfg *Config, cfIdx int) [][]string {
 		panic(fmt.Errorf("无效数据表:", cfIdx))
 	}
 
-	colNum := len(sheet.Rows[1].Cells) // 名字行
+	colNum := func() int {
+		var idx int
+		for idx = 0; idx < len(sheet.Rows[1].Cells); idx++ {
+			// desc, _ := sheet.Rows[0].Cells[idx].String()
+			name, _ := sheet.Rows[1].Cells[idx].String()
+			typ, _ := sheet.Rows[2].Cells[idx].String()
+			log.Println(idx, name, typ)
+			if name == "" || typ == "" {
+				break
+			}
+		}
+		return idx
+	}()
+
+	log.Printf("%s, sheet %d 列数: %d\n", cfg.List[cfIdx].Input, cfg.List[cfIdx].Sheet, colNum)
 
 	ret := [][]string{}
 	for _, row := range sheet.Rows {
@@ -200,6 +212,7 @@ func readFull(fp string, cfg *Config, cfIdx int) [][]string {
 		}
 		ret = append(ret, list)
 	}
+
 	return ret
 }
 
@@ -207,7 +220,8 @@ func readFull(fp string, cfg *Config, cfIdx int) [][]string {
 func readXlsxData(fp string, cfg *Config, cfIdx int) *XlsxData {
 	rowsData := readFull(fp, cfg, cfIdx)
 	if err := checkHeader(rowsData); err != nil {
-		panic(err)
+		cfItem := cfg.List[cfIdx]
+		panic(fmt.Errorf("input: %s, sheet: %d, error: %v", cfItem.Input, cfItem.Sheet, err))
 	}
 
 	name := strings.Split(cfg.List[cfIdx].Input, ".")[0]
