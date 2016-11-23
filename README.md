@@ -14,13 +14,13 @@ YAML格式
 name: 配置名
 template: 生成模版文件(lua.tpl)，路径同配置文件
 sheet: 默认数据工作表索引（从1开始）
-pkcols: 主键列数组
+pkcols: 主键列数组(Excel字母表示）
 pksep: 主键分隔符（适用于复合主键情况）
 list: 数据项列表
 	input: excel文件名(example.xlsx)
 	sheet: 当前数据项工作表索引（从1开始）
 	pkcols: 当前数据项主键列数组
-	cols: 数据列（负数代表不包含，正数代表包含，从1开始，不能同时包含正负列号)
+	cols: 数据列（负数代表不包含，正数代表包含，Excel字母表示，不能同时包含正负列号)
 	output: 输出文件路径名
 ```
 
