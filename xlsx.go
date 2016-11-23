@@ -121,9 +121,11 @@ func readRow(row *xlsx.Row, colNum int) []string {
 	empty := true
 	ret := []string{}
 	for idx := 0; idx < colNum; idx++ {
-		cell := row.Cells[idx]
-		s, _ := cell.String()
-		v := strings.TrimSpace(s)
+		var v string
+		if idx < len(row.Cells) {
+			v, _ = row.Cells[idx].String()
+		}
+		v = strings.TrimSpace(v)
 		if v != "" {
 			empty = false
 		}
