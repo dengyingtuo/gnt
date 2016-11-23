@@ -176,7 +176,7 @@ func checkHeader(rowsData [][]string) error {
 func readFull(fp string, cfg *Config, cfIdx int) [][]string {
 	file, err := xlsx.OpenFile(fp)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	si := cfg.GetSheet(cfIdx)

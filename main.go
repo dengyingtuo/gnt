@@ -16,9 +16,11 @@ var debug bool
 var configPath string
 var inputPath string
 var outputPath string
+var force bool // 是否处理所有输入项，不存在就panic
 
 func init() {
 	flag.BoolVar(&debug, "debug", false, "open debug output")
+	flag.BoolVar(&force, "force", true, "force handle all input")
 	flag.StringVar(&configPath, "config", "config.yml", "config file in YAML format")
 	flag.StringVar(&inputPath, "input", "./xlsx", "input xlsx path")
 	flag.StringVar(&outputPath, "output", "./output", "output file path")
@@ -74,13 +76,17 @@ func main() {
 
 	jobs := sync.WaitGroup{}
 	for i, v := range cfg.List {
-		xlsxData := readXlsxData(path.Join(inputPath, v.Input), cfg, i)
+		input := path.Join(inputPath, v.Input)
+		if !isFileExists(input) && force {
+			panic(fmt.Errorf("指定文件:%s不存在!", input))
+		}
+		xlsxData := readXlsxData(input, cfg, i)
 		tpl, err := template.New(cfg.Template).Funcs(funcMap).ParseFiles(path.Join(path.Dir(configPath), cfg.Template))
 		if err != nil {
 			panic(err)
 		}
-		fp := path.Join(outputPath, v.Output)
-		outputFile, err := os.OpenFile(fp, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+		output := path.Join(outputPath, v.Output)
+		outputFile, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 		if err != nil {
 			panic(err)
 		}
