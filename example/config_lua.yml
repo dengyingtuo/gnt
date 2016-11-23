@@ -1,24 +1,24 @@
 name: "lua"
 template: "lua.tpl"
 sheet: 1
-pkcols: [1]
+pkcols: ["A"]
 pksep: ":"
 list:
   -
     input: "example.xlsx"
     sheet: 1
-    pkcols: [1]   
-    cols: [-3] # 负数代表不包含，正负不能同时存在
+    pkcols: ["A"]   
+    cols: ["-C"] # 负数代表不包含，正负不能同时存在
     output: "example_hero.lua"
   -
     input: "example.xlsx"
     sheet: 2
-    pkcols: [1,2]   
-    cols: [-4]
+    pkcols: ["A","B"]   
+    cols: ["-D"]
     output: "example_equip.lua"
   -
     input: "example.xlsx"
     sheet: 3
-    pkcols: [2,3]   
-    cols: [-1, -2, -3, -5]
+    pkcols: ["B","C"]   
+    cols: ["-A", "-B", "-C", "-E"]
     output: "example_role.lua"
