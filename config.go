@@ -5,16 +5,52 @@ import (
 	"io/ioutil"
 	"log"
 	"math"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
 
 type Item struct {
-	Input  string
-	Sheet  int
-	PkCols []string
-	Cols   []string
-	Output string
+	Input    string
+	Sheet    int
+	PkCols   []string
+	Cols     []string
+	ColsConv map[string]string
+	Output   string
+}
+
+type ConvFunc func(s string) ([][]string, []string)
+
+func (item *Item) GetConvFunc(letterCol string) ConvFunc {
+	if item.ColsConv == nil {
+		return nil
+	}
+
+	var cmd string
+	if cmd = item.ColsConv[letterCol]; cmd == "" {
+		return nil
+	}
+
+	args := strings.Split(cmd, " ")
+	if len(args) < 3 {
+		// panic(fmt.Errorf("无效split2描述:%s", cmd))
+		return nil
+	}
+	seps := []string{args[1], args[2]}
+	keys := []string{}
+	if len(args) >= 5 {
+		keys = []string{args[3], args[4]}
+	}
+
+	return func(s string) ([][]string, []string) {
+		ret := [][]string{}
+		list := strings.Split(s, seps[0])
+		for _, v := range list {
+			vals := strings.Split(v, seps[1])
+			ret = append(ret, vals)
+		}
+		return ret, keys
+	}
 }
 
 type Config struct {
@@ -24,6 +60,17 @@ type Config struct {
 	PkSep    string
 	Ext      string
 	List     []Item
+}
+
+func toLetterColumn(col int) string {
+	name := ""
+	if col < 0 {
+		name += "-"
+		col = -col
+	}
+
+	name += string('A' + byte(col-1))
+	return name
 }
 
 // 字母表示的列转为列序号, 例如A:1

@@ -9,6 +9,7 @@ list:
     sheet: 1
     pkcols: ["A"]   
     cols: ["-C"] # 负数代表不包含，正负不能同时存在
+    colsconv: {"G": "split2 , : id chance", "H": "split2 , :"}
     output: "example_hero.lua"
   -
     input: "example.xlsx"

@@ -13,6 +13,7 @@ type Field struct {
 	Desc string
 	Name string
 	Type string
+	Conv ConvFunc
 	str  string
 }
 
@@ -39,6 +40,22 @@ func (f *Field) EscapeValue() interface{} {
 		return fmt.Sprintf("\"%s\"", f.str)
 	}
 	return f.Value()
+}
+
+func (f *Field) ExpandKeys() []string {
+	if f.Conv != nil {
+		_, keys := f.Conv(f.str)
+		return keys
+	}
+	return nil
+}
+
+func (f *Field) ExpandValues() [][]string {
+	if f.Conv != nil {
+		vals, _ := f.Conv(f.str)
+		return vals
+	}
+	return nil
 }
 
 type RowData struct {
@@ -244,7 +261,9 @@ func readXlsxData(fp string, cfg *Config, cfIdx int) *XlsxData {
 				desc := descRow[colIdx]
 				name := nameRow[colIdx]
 				typ := typeRow[colIdx]
-				field := &Field{Desc: desc, Name: name, Type: typ, str: val}
+
+				conv := cfg.List[cfIdx].GetConvFunc(toLetterColumn(colIdx + 1))
+				field := &Field{Desc: desc, Name: name, Type: typ, str: val, Conv: conv}
 				log.Printf("field:%+v\n", field)
 				fieldList = append(fieldList, field)
 			}
