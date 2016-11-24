@@ -52,6 +52,9 @@ func (f *Field) ExpandKeys() []string {
 
 func (f *Field) ExpandValues() [][]string {
 	if f.Conv != nil {
+		if f.str == "" {
+			return nil
+		}
 		vals, _ := f.Conv(f.str)
 		return vals
 	}

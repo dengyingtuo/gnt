@@ -7,6 +7,7 @@ local t = {
 	    {{if .Conv -}}
                 {{- $keys := .ExpandKeys}}
                 {{- $vals := .ExpandValues}}
+		{{- if $vals}}
 	        {{- $maxRowIdx := len $vals | dec}}
                 {{- .Name}} = {
 		    {{- range $irow, $row := $vals}} 
@@ -19,10 +20,10 @@ local t = {
 		    {{- end}}
                     {{- if lt $irow $maxRowIdx}},{{end -}}
                     {{- end}}
-        }	
+        } {{- end}}
 	    {{- else}}
                 {{- .Name}}={{.EscapeValue -}} 
-            {{end}}
+            {{- end}}
             {{- if lt $j $M}},{{end -}}
         {{- end}}
     }
