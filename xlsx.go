@@ -10,11 +10,13 @@ import (
 )
 
 type Field struct {
-	Desc string
-	Name string
-	Type string
-	Conv ConvFunc
-	str  string
+	Desc       string
+	Name       string
+	Type       string
+	Split1Vals []string
+	Split2Vals [][]string
+	SplitKeys  []string
+	str        string
 }
 
 func toValue(s, typ string) interface{} {
@@ -32,33 +34,52 @@ func toValue(s, typ string) interface{} {
 }
 
 func (f *Field) Value() interface{} {
+	if f.str == "nil" {
+		return nil
+	}
 	return toValue(f.str, f.Type)
 }
 
+func (f *Field) split1(args []string) {
+	if f.str == "" {
+		f.str = "nil" // skip flag
+		return
+	}
+	f.Split1Vals = strings.Split(f.str, args[0])
+}
+
+func (f *Field) split2(args []string) {
+	if f.str == "" {
+		f.str = "nil" // skip flag
+		return
+	}
+	seps := []string{args[0], args[1]}
+	if len(args) >= 4 {
+		f.SplitKeys = []string{args[2], args[3]}
+	}
+	list := strings.Split(f.str, seps[0])
+	for _, v := range list {
+		vals := strings.Split(v, seps[1])
+		f.Split2Vals = append(f.Split2Vals, vals)
+	}
+}
+
+func (f *Field) doSplit(cmd string, args []string) {
+	if cmd == "split1" {
+		f.split1(args)
+	} else if cmd == "split2" {
+		f.split2(args)
+	}
+}
+
 func (f *Field) EscapeValue() interface{} {
+	if f.str == "nil" {
+		return nil
+	}
 	if f.Type == "string" {
 		return fmt.Sprintf("\"%s\"", f.str)
 	}
 	return f.Value()
-}
-
-func (f *Field) ExpandKeys() []string {
-	if f.Conv != nil {
-		_, keys := f.Conv(f.str)
-		return keys
-	}
-	return nil
-}
-
-func (f *Field) ExpandValues() [][]string {
-	if f.Conv != nil {
-		if f.str == "" {
-			return nil
-		}
-		vals, _ := f.Conv(f.str)
-		return vals
-	}
-	return nil
 }
 
 type RowData struct {
@@ -264,10 +285,12 @@ func readXlsxData(fp string, cfg *Config, cfIdx int) *XlsxData {
 				desc := descRow[colIdx]
 				name := nameRow[colIdx]
 				typ := typeRow[colIdx]
-
-				conv := cfg.List[cfIdx].GetConvFunc(toLetterColumn(colIdx + 1))
-				field := &Field{Desc: desc, Name: name, Type: typ, str: val, Conv: conv}
-				log.Printf("field:%+v\n", field)
+				field := &Field{Desc: desc, Name: name, Type: typ, str: val}
+				cmd, args := cfg.List[cfIdx].GetConv(toLetterColumn(colIdx + 1))
+				if cmd != "" {
+					field.doSplit(cmd, args)
+				}
+				log.Printf("field:%+v, cmd: %s, args: %v\n", field, cmd, args)
 				fieldList = append(fieldList, field)
 			}
 		}

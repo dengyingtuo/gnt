@@ -19,38 +19,24 @@ type Item struct {
 	Output   string
 }
 
-type ConvFunc func(s string) ([][]string, []string)
-
-func (item *Item) GetConvFunc(letterCol string) ConvFunc {
+func (item *Item) GetConv(letterCol string) (cmd string, args []string) {
 	if item.ColsConv == nil {
-		return nil
+		return
 	}
 
-	var cmd string
-	if cmd = item.ColsConv[letterCol]; cmd == "" {
-		return nil
+	var conv string
+	if conv = item.ColsConv[letterCol]; conv == "" {
+		return
 	}
 
-	args := strings.Split(cmd, " ")
-	if len(args) < 3 {
-		// panic(fmt.Errorf("无效split2描述:%s", cmd))
-		return nil
-	}
-	seps := []string{args[1], args[2]}
-	keys := []string{}
-	if len(args) >= 5 {
-		keys = []string{args[3], args[4]}
+	list := strings.Split(conv, " ")
+	if len(list) == 0 {
+		return
 	}
 
-	return func(s string) ([][]string, []string) {
-		ret := [][]string{}
-		list := strings.Split(s, seps[0])
-		for _, v := range list {
-			vals := strings.Split(v, seps[1])
-			ret = append(ret, vals)
-		}
-		return ret, keys
-	}
+	cmd = list[0]
+	args = list[1:]
+	return
 }
 
 type Config struct {
@@ -62,38 +48,50 @@ type Config struct {
 	List     []Item
 }
 
-func toLetterColumn(col int) string {
-	name := ""
-	if col < 0 {
-		name += "-"
-		col = -col
+func toLetterColumn(icol int) string {
+	var sign byte
+	if icol < 0 {
+		sign = '-'
+		icol = int(math.Abs(float64(icol)))
+	}
+	icol -= 1
+	ret := ""
+	for {
+		n := icol / 26
+		m := icol % 26
+		ret = string('A'+byte(m)) + ret
+		if n == 0 {
+			break
+		}
+		icol = n - 1
 	}
 
-	name += string('A' + byte(col-1))
-	return name
+	if sign == '-' {
+		ret = fmt.Sprintf("%c%s", sign, ret)
+	}
+	return ret
 }
 
 // 字母表示的列转为列序号, 例如A:1
 func toIntColumn(name string) (int, error) {
-	col := 0
-	isMinus := false
-	if name[0] == '-' {
-		isMinus = true
-		name = name[1:]
+	name = strings.ToUpper(name)
+	lcol := name
+	if lcol[0] == '-' {
+		lcol = lcol[1:]
 	}
-	n := len(name)
-	base := int('Z'-'A') + 1
-	for i, v := range name {
+	ret := 0
+	for i := range lcol {
+		v := lcol[len(lcol)-i-1]
 		if v < 'A' || v > 'Z' {
 			return 0, fmt.Errorf("无效列名:%s", name)
 		}
-		col += ((int(v-'A') + 1) * int(math.Pow(float64(base), float64(n-i-1))))
+		ret += int((byte(v) - 'A' + 1)) * int(math.Pow(26, float64(i)))
 	}
 
-	if isMinus {
-		col = -col
+	if name[0] == '-' {
+		ret = -ret
 	}
-	return col, nil
+	return ret, nil
 }
 
 func toIntColumns(names []string) ([]int, error) {
