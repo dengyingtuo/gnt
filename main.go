@@ -77,8 +77,12 @@ func main() {
 	jobs := sync.WaitGroup{}
 	for i, v := range cfg.List {
 		input := path.Join(inputPath, v.Input)
-		if !isFileExists(input) && force {
-			panic(fmt.Errorf("指定文件:%s不存在!", input))
+		if !isFileExists(input) {
+			if force {
+				panic(fmt.Errorf("指定文件:%s不存在!", input))
+			} else {
+				continue
+			}
 		}
 		xlsxData := readXlsxData(input, cfg, i)
 		tpl, err := template.New(cfg.Template).Funcs(funcMap).ParseFiles(path.Join(path.Dir(configPath), cfg.Template))
