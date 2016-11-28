@@ -33,6 +33,10 @@ func toValue(s, typ string) interface{} {
 	return nil
 }
 
+func (f *Field) IsNil() bool {
+	return f.str == "nil"
+}
+
 func (f *Field) Value() interface{} {
 	if f.str == "nil" {
 		return nil
